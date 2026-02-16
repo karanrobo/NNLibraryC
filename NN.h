@@ -22,11 +22,13 @@ typedef enum {
     SIGMOID,
     RELU,
     LEAKY_RELU,
+    SOFTMAX,
 } Activation;
 
 typedef enum {
     MSE,
     BINARY_CROSS_ENTROPY,
+    MCLASS_CROSS_ENTROPY,
 }Cost;
 
 typedef struct {
@@ -59,8 +61,10 @@ typedef struct{
     int *layer; 
     int layers;
 
-    // Activation function
+    // Activation function 
+    Activation *activations; // define activation per layer
     // Loss function 
+    Cost cost;
 } NN;
 
 
@@ -111,27 +115,30 @@ float mse_cost_diff(float y, float y_hat);
 float binary_cross_entropy_cost(float y, float y_hat);
 float binary_cross_entropy_cost_diff(float y, float y_hat);
 
+
+float mclass_cross_entropy_cost(NN nn, Mat y);
+
 void soft_max_output_layer(NN nn);
 
 
 // float hinge_cost(float y, float y_hat);
 // float hinge_cost_diff(float y, float y_hat);
 
-void MatAct(Mat dest, Mat m, Activation a);
-void MatActDiff(Mat dest, Mat m, Activation a);
+void MatAct(NN nn, Mat dest, Mat m, int layer);
+void MatActDiff(NN nn, Mat dest, Mat m, int layer);
 
 
 
-NN *make_model(int *nodes, int layer_count, Function f);
-Mat *INIT_TENSOR_W(int *nodes, int layer_count, Function f);
+NN *make_model(int *nodes, int layer_count, Activation *act, Cost cost);
+Mat *INIT_TENSOR_W(int *nodes, int layer_count, Activation *act);
 Mat *INIT_ACTIVATION(int *nodes, int layer_count);
 Mat *INIT_DELTA(int *nodes, int layer_count);
 Mat *MCES_INIT_B(int *nodes, int layer_count);
 
-Mat forward(Mat input, NN nn, Activation act);
-void backprop(NN nn, Mat y, float eta, Function f);
-float cost(NN nn, Mat y, Cost cost);
-void train_mlp_sgd(Mat input, NN nn, Mat y, float eta, int epoch, Function f, bool print_error);
+Mat forward(Mat input, NN nn);
+void backprop(NN nn, Mat y, float eta);
+float cost(NN nn, Mat y);
+void train_mlp_sgd(Mat input, NN nn, Mat y, float eta, int epoch, bool print_error);
 void print_model(NN model);
 
 

@@ -40,10 +40,11 @@ int main(void) {
     int epoch = 100000;
 
     int architecture[] = {2,3,4,5,4,3,1};
+    Activation act[] =   {1,1,1,1,1,1,0};
     int alen = sizeof(architecture)/sizeof(architecture[0]);
-    Function f = {.cost = BINARY_CROSS_ENTROPY, .act = SIGMOID};
-    NN *nn = make_model(architecture, alen, f);
-    train_mlp_sgd(x,*nn, y, eta, epoch, f, 0);
+    // Function f = {.cost = BINARY_CROSS_ENTROPY, .act = SIGMOID};
+    NN *nn = make_model(architecture, alen, act, BINARY_CROSS_ENTROPY);
+    train_mlp_sgd(x,*nn, y, eta, epoch, 0);
 
     
     print_model(*nn);
@@ -51,7 +52,7 @@ int main(void) {
     Mat u = MatInit(2,1);
     MAT_AT(u, 0, 0) = 1;
     MAT_AT(u, 1, 0) = 0;
-    Mat test = forward(u, *nn, f.act);
+    Mat test = forward(u, *nn);
     MAT_PRINT(test);
     return 0;
 }

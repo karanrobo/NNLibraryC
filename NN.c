@@ -174,7 +174,7 @@ float sigmoidfDiff(float x) {
 }
 
 
-void MatAct(Mat dest, Mat m, Activation act) {
+void MatAct(NN nn, Mat dest, Mat m, int layer) {
     assert(dest->rows == m->rows);
     assert(dest->cols == m->cols);
     size_t i,j;
@@ -184,8 +184,8 @@ void MatAct(Mat dest, Mat m, Activation act) {
         for (j = 0; j < m->cols; j++)
         {
 
-            MAT_AT(dest,i,j) = act == RELU ? ReLU(MAT_AT(m,i,j)) : 
-                            act == SIGMOID ? sigmoidf(MAT_AT(m,i,j)) : 
+            MAT_AT(dest,i,j) = nn.activations[layer] == RELU ? ReLU(MAT_AT(m,i,j)) : 
+                            nn.activations[layer] == SIGMOID ? sigmoidf(MAT_AT(m,i,j)) : 
                             LeakyReLU(MAT_AT(m,i,j));
         }
       
@@ -193,7 +193,7 @@ void MatAct(Mat dest, Mat m, Activation act) {
 }
 
 // for sig(m)
-void MatActDiff(Mat dest, Mat m, Activation act) {
+void MatActDiff(NN nn, Mat dest, Mat m, int layer) {
     assert(dest->rows == m->rows);
     assert(dest->cols == m->cols);
     size_t i, j;
@@ -204,9 +204,13 @@ void MatActDiff(Mat dest, Mat m, Activation act) {
         {
             //float val = MAT_AT(m,i,j);
             //MAT_AT(dest,i,j) = val*(1-val);
-            MAT_AT(dest, i, j) = act == RELU ? ReLUDiff(MAT_AT(m,i,j)) : 
-                            act == SIGMOID ? sigmoidfDiff(MAT_AT(m,i,j)) : 
-                            LeakyReLUDiff(MAT_AT(m,i,j));
+            MAT_AT(dest, i, j) = nn.activations[layer] == RELU ? ReLUDiff(MAT_AT(m,i,j)) : 
+                            nn.activations[layer] == SIGMOID ? sigmoidfDiff(MAT_AT(m,i,j)) : 
+                            nn.activations[layer] == LEAKY_RELU ? LeakyReLUDiff(MAT_AT(m,i,j)) : 0;
+            if (nn.activations[layer] == SOFTMAX) {
+                // handleed in the forward
+                return;
+            }
         }
       
     }
@@ -288,40 +292,72 @@ float binary_cross_entropy_cost_diff(float y, float y_hat) {
     return -1.0f * dC_dy_hat_c + dC_dy_hat_ic;
 }
 
+float mclass_cross_entropy_cost(NN nn, Mat y) {
+    int size = nn.layers - 1;
+    int nodes = nn.layer[size];
+    Mat y_hat = nn.post_activation[size];
+    float sum = 0.0;
+    for (size_t i = 0; i < nodes; i++)
+    {   
+        sum += -1.f * MAT_AT(y, i, 0) * logf(MAT_AT(y_hat, i, 0));
+    }
+    return sum;
+}
 
+// for stability, we rubtract the max from each exponent
 void soft_max_output_layer(NN nn) {
     int size = nn.layers - 1;
     int nodes = nn.layer[size];
     Mat output = nn.post_activation[size];
+    float max = MAT_AT(output, 0, 0);
+
+    for (size_t i = 1; i < nodes; i++)
+    {
+        if (max < MAT_AT(output, i, 0)) {
+            max = MAT_AT(output, i, 0);
+        }
+    }
+    
+
+    // compute exp(x - max) and sum
     float sum = 0.0;
     for (size_t i = 0; i < nodes; i++)
     {
-        sum += expf(MAT_AT(output, i, 0));
+        MAT_AT(output, i, 0) = expf(MAT_AT(output, i, 0) - max);
+        sum += MAT_AT(output, i, 0);
     }
     
+    if (sum <= 0.0) {
+        return;
+    }
+
     for (size_t i = 0; i < nodes; i++)
     {
-        MAT_AT(output, i, 0) = expf(MAT_AT(output, i, 0))/sum; 
+        MAT_AT(output, i, 0) = MAT_AT(output, i, 0)/sum; 
     }
-    
+
     return;
 }
 
 // y ->
-void cost_diff(Mat dest, Mat y, Mat y_hat, Function f) {
+void cost_diff(NN nn, Mat dest, Mat y, Mat y_hat) {
     assert(dest->rows == y->rows);
     assert(dest->cols == y->cols);
     assert(y_hat->cols == y->cols);
     assert(y_hat->rows == y->rows);
     size_t i,j;
+
+     // Note: MCLASS_CROSS_ENTROPY uses the shortcut in deltaCal (y_hat - y)
+    // and should never call this function
+
     // #pragma omp parallel for private(i, j) if(m->rows * m->cols > 1000)
     for (i = 0; i < y->rows; i++)
     {
         for (j = 0; j < y->cols; j++)
         {
 
-            MAT_AT(dest,i,j) = f.cost == MSE ? mse_cost_diff(MAT_AT(y,i,j), MAT_AT(y_hat,i,j)): 
-                             f.cost == BINARY_CROSS_ENTROPY ? 
+            MAT_AT(dest,i,j) = nn.cost == MSE ? mse_cost_diff(MAT_AT(y,i,j), MAT_AT(y_hat,i,j)): 
+                             nn.cost == BINARY_CROSS_ENTROPY ? 
                              binary_cross_entropy_cost_diff(MAT_AT(y,i,j), MAT_AT(y_hat,i,j)): 
                             0;
         }
@@ -329,13 +365,16 @@ void cost_diff(Mat dest, Mat y, Mat y_hat, Function f) {
     }
 }
 
-float cost(NN nn, Mat y, Cost c) {
+float cost(NN nn, Mat y) {
+    if (nn.cost == MCLASS_CROSS_ENTROPY) {
+        return mclass_cross_entropy_cost(nn, y);
+    }
     float cost = 0.f;
     Mat pred = nn.post_activation[nn.layers - 1];
     int output_size = y->rows;
     for (size_t i = 0; i < output_size; i++) {
-        cost += c == MSE ? mse_cost(MAT_AT(pred, i, 0), MAT_AT(y, i, 0)):
-                     c == BINARY_CROSS_ENTROPY ? binary_cross_entropy_cost(MAT_AT(pred, i, 0), MAT_AT(y, i, 0)):
+        cost += nn.cost == MSE ? mse_cost(MAT_AT(pred, i, 0), MAT_AT(y, i, 0)):
+                     nn.cost == BINARY_CROSS_ENTROPY ? binary_cross_entropy_cost(MAT_AT(pred, i, 0), MAT_AT(y, i, 0)):
                      0;
     }
     return cost;
@@ -356,7 +395,7 @@ float cost(NN nn, Mat y, Cost c) {
 
 
 
-Mat forward(Mat input, NN nn, Activation act) {
+Mat forward(Mat input, NN nn) {
     // pre_ac[0] is input 
     MatCopy(nn.post_activation[0], input);
     for (int i = 1; i < nn.layers; i++) {
@@ -366,26 +405,34 @@ Mat forward(Mat input, NN nn, Activation act) {
 
         // store post_activation
         MatCopy(nn.post_activation[i], nn.pre_activation[i]);
-        MatAct(nn.post_activation[i], nn.post_activation[i], act);
+        if (i == nn.layers - 1 && nn.activations[i] == SOFTMAX) {
+            soft_max_output_layer(nn);
+        } else {
+            MatAct(nn, nn.post_activation[i], nn.post_activation[i], i);
+        }
     }
     return nn.post_activation[nn.layers - 1];
 }
 
-void deltaCal(NN nn, Mat y, Function f, int last) {
+void deltaCal(NN nn, Mat y, int last) {
     Mat diff = MatInit(nn.post_activation[last]->rows, nn.post_activation[last]->cols);
 
-    if (f.act == SIGMOID && f.cost == BINARY_CROSS_ENTROPY) {
+    if ((nn.activations[last] == SIGMOID && nn.cost == BINARY_CROSS_ENTROPY)) {
         // diff = y_hat - y;
+        MatCopy(diff, nn.post_activation[last]);
+        MatSub(diff, y);
+        MatCopy(nn.delta[last], diff);
+    } else if (nn.activations[last] == SOFTMAX && nn.cost == MCLASS_CROSS_ENTROPY) {
         MatCopy(diff, nn.post_activation[last]);
         MatSub(diff, y);
         MatCopy(nn.delta[last], diff);
     } else {
         // for end matrix
         // dC/dy
-        cost_diff(diff, y, nn.post_activation[last], f);
+        cost_diff(nn, diff, y, nn.post_activation[last]);
         // hadamad product of diff and delta
         Mat sigdiff = MatInit(nn.post_activation[last]->rows, nn.post_activation[last]->cols);
-        MatActDiff(sigdiff, nn.post_activation[last], f.act);
+        MatActDiff(nn, sigdiff, nn.post_activation[last], last);
         Hadamad(nn.delta[last], diff, sigdiff);
         MatFree(sigdiff);
     }
@@ -395,12 +442,12 @@ void deltaCal(NN nn, Mat y, Function f, int last) {
 }
 
 
-void backprop(NN nn, Mat y, float eta, Function f) {
+void backprop(NN nn, Mat y, float eta) {
     // calculate delta
     int last = nn.layers - 1;
 
     // output layer delta
-    deltaCal(nn, y, f, last);
+    deltaCal(nn, y, last);
 
     for (int l = last - 1; l >= 1; l--) {
         Mat Wt = MatInit(nn.W[l]->cols, nn.W[l]->rows);
@@ -410,7 +457,7 @@ void backprop(NN nn, Mat y, float eta, Function f) {
         MatMul(prod, Wt, nn.delta[l + 1]);
 
         Mat sigdiff_h = MatInit(nn.post_activation[l]->rows, nn.post_activation[l]->cols);
-        MatActDiff(sigdiff_h, nn.post_activation[l], f.act);
+        MatActDiff(nn, sigdiff_h, nn.post_activation[l], l);
         Hadamad(nn.delta[l], prod, sigdiff_h);
 
         MatFree(Wt);
@@ -444,7 +491,7 @@ void backprop(NN nn, Mat y, float eta, Function f) {
     return;
 }
 // should have sig train_mlp_sgd(in, nn, out, eta, epoch, activation, loss)
-void train_mlp_sgd(Mat input, NN nn, Mat y, float eta, int epoch, Function f, bool print_error) {
+void train_mlp_sgd(Mat input, NN nn, Mat y, float eta, int epoch, bool print_error) {
     // each col new input
     // each col maps to each input
     Mat xj = MatInit(input->rows, 1);
@@ -456,12 +503,12 @@ void train_mlp_sgd(Mat input, NN nn, Mat y, float eta, int epoch, Function f, bo
             GetCol(yj, y, j);
             // forward to initialise the current weights and params
             // takes column vector
-            forward(xj, nn, f.act);
+            forward(xj, nn);
             // backwards to propagate the changes backwards
-            backprop(nn, yj, eta, f);
+            backprop(nn, yj, eta);
             
         }      
-        if (print_error) printf("Cost = %f\n", cost(nn, yj, f.cost));
+        if (print_error) printf("Cost = %f\n", cost(nn, yj));
     }
     MatFree(xj);
     MatFree(yj);
@@ -493,9 +540,9 @@ void print_model(NN model) {
 
 
 
-NN *make_model(int *nodes, int layer_count, Function f) {
+NN *make_model(int *nodes, int layer_count, Activation *act, Cost cost) {
     NN *model = malloc(sizeof(NN));
-    model->W = INIT_TENSOR_W(nodes, layer_count, f);
+    model->W = INIT_TENSOR_W(nodes, layer_count, act);
     model->b = MCES_INIT_B(nodes, layer_count);
     // model->delta = INIT_TENSOR(nodes, layer_count);
     model->pre_activation = INIT_ACTIVATION(nodes, layer_count);
@@ -509,11 +556,21 @@ NN *make_model(int *nodes, int layer_count, Function f) {
     }
     model->layer = arc;
     model->layers = layer_count;
+
+    model->activations = malloc(sizeof(Activation) * layer_count);
+    for (size_t i = 0; i < layer_count; i++)
+    {
+        model->activations[i] = act[i];
+    }
+    
+    model->cost = cost;
+
+
     return model;
 }
 
 
-Mat *INIT_TENSOR_W(int *nodes, int layer_count, Function f) {
+Mat *INIT_TENSOR_W(int *nodes, int layer_count, Activation *act) {
     // init node:
     // n x 1:
     // n x n 
@@ -525,9 +582,9 @@ Mat *INIT_TENSOR_W(int *nodes, int layer_count, Function f) {
         int col = nodes[i - 1];
         int row = nodes[i];
         W[i - 1] = MatInit(row,col);
-        if (f.act == RELU) {
+        if (act[i] == RELU) {
             MatRandHe(W[i - 1], col);
-        } else if (f.act == SIGMOID) {
+        } else if (act[i] == SIGMOID) {
             MatRandXavier(W[i - 1], col);
         } else {
             MatRand(W[i - 1], -1, 1);
