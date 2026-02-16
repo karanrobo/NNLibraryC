@@ -36,8 +36,8 @@ int main(void) {
         //     int p = j%2;//  0 0 1 1 
         //     MAT_AT(x, 1, j) = p;
         // }
-    float eta = 0.001;
-    int epoch = 100000;
+    float eta = 0.01;
+    int epoch = 10000;
 
     int architecture[] = {2,3,4,5,4,3,1};
     Activation act[] =   {1,1,1,1,1,1,0};
@@ -50,8 +50,8 @@ int main(void) {
     print_model(*nn);
 
     Mat u = MatInit(2,1);
-    MAT_AT(u, 0, 0) = 1;
-    MAT_AT(u, 1, 0) = 0;
+    MAT_AT(u, 0, 0) = 0;
+    MAT_AT(u, 1, 0) = 1;
     Mat test = forward(u, *nn);
     MAT_PRINT(test);
     return 0;
