@@ -91,6 +91,7 @@ void MatPrint(Mat a, const char *c);
 void Transpose(Mat dest, Mat m);
 void Hadamad(Mat dest, Mat a, Mat b);
 void GetCol(Mat dest, Mat a, int col);
+void MatFlat(Mat dest, Mat src);
 
 // Activations 
 float sigmoidf(float x);

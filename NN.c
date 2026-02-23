@@ -260,6 +260,21 @@ void GetCol(Mat dest, Mat a, int col) {
 
 }
 
+// dest nx1, this is row wise
+void MatFlat(Mat dest, Mat src) {
+    assert(dest->rows == src->rows * src->cols);
+    assert(dest->cols == 1);
+    int num = 0;
+    for (int i = 0; i < src->rows; i++) {
+        for (int j = 0; j < src->cols; j++)
+        {
+
+            MAT_AT(dest, num, 0) = MAT_AT(src, i, j);
+            num++;
+        }
+        
+    }
+}
 
 
 // Loss MSE = { mse_loss, mse_grad };
