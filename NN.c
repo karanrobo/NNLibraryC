@@ -34,7 +34,7 @@ void MatMul(Mat dest, Mat a, Mat b) {
     size_t i, j, k;
     
     // Only parallelize for larger matrices (threshold: 1000+ total elements)
-    // #pragma omp parallel for private(i, j, k) if(a->rows * b->cols > 1000)
+    #pragma omp parallel for private(i, j, k) if(a->rows * b->cols > 1000)
     for (i = 0; i < a->rows; i++)
     {
         for (j = 0; j < b->cols; j++)
@@ -52,7 +52,7 @@ void MatMul(Mat dest, Mat a, Mat b) {
 
 void MatScalar(Mat m, float lambda) {
     size_t i, j;
-    // #pragma omp parallel for private(i, j) if(m->rows * m->cols > 1000)
+    #pragma omp parallel for private(i, j) if(m->rows * m->cols > 1000)
     for (i = 0; i < m->rows; i++){
         for (j = 0; j < m->cols; j++){
             MAT_AT(m, i, j) = MAT_AT(m, i, j) * lambda;
@@ -139,12 +139,28 @@ void MatCopy(Mat dest, Mat m) {
 
 void MatPrint(Mat m, const char *c) {
     printf("%s = [\n", c);
-    for (size_t i = 0; i < m->rows; i++)
-    {
-        for (size_t j = 0; j < m->cols; j++){
-            printf("    %f ", MAT_AT(m, i, j));
+    int lim = 100;
+    bool rb = m->rows > lim;
+    bool cb = m->cols > lim;
+    if (rb || cb) {
+        int r = (rb) ? 10 : m->rows;
+        int c = (cb) ? 10 : m->cols;
+        for (size_t i = 0; i < r; i++){
+            for (size_t j = 0; j < c; j++){
+                printf(" %f ", MAT_AT(m, i, j));
+            }
+            printf("\n");
         }
-        printf("\n");
+        printf("Omitted rows=%lld, cols=%lld\n",
+            (rb)? m->rows-lim : 0, (cb)? m->cols-lim :0);
+    } else {
+        
+        for (size_t i = 0; i < m->rows; i++) {
+            for (size_t j = 0; j < m->cols; j++){
+                printf(" %f ", MAT_AT(m, i, j));
+            }
+            printf("\n");
+        }
     }
     printf("]\n");
 }
@@ -236,7 +252,7 @@ void Hadamad(Mat dest, Mat a, Mat b) {
     assert(dest->rows == a->rows && dest->cols == a->cols
     && a->rows == b->rows && a->cols == b->cols);
     size_t i, j;
-    //#pragma omp parallel for private(i, j) if(a->rows * b->cols > 1000)
+    // #pragma omp parallel for private(i, j) if(a->rows * b->cols > 1000)
     for (i = 0; i < a->rows; i++)
     {
         for (j = 0; j < a->cols; j++)
@@ -439,6 +455,8 @@ void deltaCal(NN nn, Mat y, int last) {
         MatCopy(nn.delta[last], diff);
     } else if (nn.activations[last] == SOFTMAX && nn.cost == MCLASS_CROSS_ENTROPY) {
         MatCopy(diff, nn.post_activation[last]);
+        // MAT_PRINT(diff);
+        // MAT_PRINT(y);
         MatSub(diff, y);
         MatCopy(nn.delta[last], diff);
     } else {
@@ -509,6 +527,7 @@ void backprop(NN nn, Mat y, float eta) {
 void train_mlp_sgd(Mat input, NN nn, Mat y, float eta, int epoch, bool print_error) {
     // each col new input
     // each col maps to each input
+    printf("xr = %lld xc = %lld yr = %lld yc = %lld\n", input->rows,input->cols, y->rows, y->cols);
     Mat xj = MatInit(input->rows, 1);
     Mat yj = MatInit(y->rows, 1);
     for (int i = 0; i < epoch; i++) {      
@@ -521,6 +540,7 @@ void train_mlp_sgd(Mat input, NN nn, Mat y, float eta, int epoch, bool print_err
             forward(xj, nn);
             // backwards to propagate the changes backwards
             backprop(nn, yj, eta);
+            printf("on col: %d\n", j);
             
         }      
         if (print_error) printf("Cost = %f\n", cost(nn, yj));

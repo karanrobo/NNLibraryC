@@ -20,30 +20,36 @@ uint32_t convert_endian(uint32_t val) {
            ((val & 0x000000FF) << 24);
 }
 
-void colourNormaliseArray(Mat m, ImgData *data, int image_num) {
-    for (int i = 0; i < data->rows; i++) {
-        for (int j = 0; j < data->cols; j++)
-        { 
-            MAT_AT(m, i, j) = (float)IMAGE_PIXEL(data, image_num, i, j)/255.f; // put them as 0-1
+void colourNormaliseArray(Mat m, ImgData *data) {
+    for (int k = 0; k < data->num_images; k++)
+    {
+        for (int i = 0; i < data->rows; i++) {
+            for (int j = 0; j < data->cols; j++)
+            { 
+                int row = i * data->cols + j;
+                MAT_AT(m, row, k) = (float)IMAGE_PIXEL(data, k, i, j) / 255.0f;
+            }
         }
     }
+    
 }
 
 
-Mat labels_to_onehot(ImgData *data) {
+void labels_to_onehot(Mat yout, ImgData *data) {
     // 10 classes;
-    Mat yout = MatInit(data->num_images, 10);
-    for (size_t i = 0; i < data->num_images; i++)
+    // 
+    // Mat yout = MatInit(10, data->num_images);
+    for (size_t i = 0; i < 10; i++)
     {
-        for (size_t j = 0; j < 10; j++)
+        for (size_t j = 0; j < data->num_images; j++)
         {
-            if (data->images[i] == j) {
+            if (data->images[j] == i) {
                 MAT_AT(yout, i, j) = 1.0;
             }
         }
         
     }
-    return yout;
+    //return yout;
 }
 
 ImgData *load_mnist() {
@@ -168,6 +174,76 @@ void show_image(ImgData *data, int img) {
     // printf("Label = %d\n", data->labels[img]);
 }
 
-float *draw_image() {
+// int drawUIDesign(int screenWidth, int screenHeight) {
+//     double wl = (float)GetScreenWidth()/screenWidth;
+//     double hl = (float)GetScreenHeight()/screenHeight;
+
+//     Rectangle anchor_0 = (Rectangle){20.000000*wl, 20.000000*hl, 260.000000*wl, 260.000000*hl};    
+//     if (GuiButton((Rectangle){20.000000*wl, 300.000000*hl, 140.000000*wl, 40.000000*hl}, "BUTTON 0"))  return 0; 
+//     GuiDrawText("SAMPLE TEXT", (Rectangle){180.000000*wl, 300.000000*hl, 100.000000*wl, 40.000000*hl}, TEXT_ALIGN_CENTER, BLACK);
+//     return -1;
+// }
+
+void draw_image(Mat inp) {
+    int window_height = 400;
+    int window_width = 300;
+    InitWindow(window_width, window_height, "Input");
+    SetWindowState(FLAG_WINDOW_RESIZABLE);
+    SetTargetFPS(60);
+    // Mat inp = MatInit(28,28);
     
+    // add later
+    // Mat brush = MatInit(9,9);
+    // for (int i = 0; i < brush->cols; i++) {
+    //     for (int j = 0; j < brush->rows; j++)
+    //     {
+    //         int dist = abs(i - j);
+    //         if (i == j) {
+    //             MAT_AT(brush, i, j) = 1.0;
+    //         } else if (dist > 0 && dist <= 2) {
+    //             MAT_AT(brush, i, j) = 0.5;
+    //         } else {
+    //             MAT_AT(brush, i, j) = 0;
+    //         }
+    //     }   
+    // }
+
+
+   
+    while (!WindowShouldClose()) {
+        Vector2 mouse = GetMousePosition();
+
+        // rounding
+        int rx = (int)roundf(mouse.x/10);
+        int ry = (int)roundf(mouse.y/10);
+        bool md = IsMouseButtonDown(MOUSE_BUTTON_LEFT);
+        BeginDrawing();
+        ClearBackground(RAYWHITE);
+        //int button_pressed = drawUIDesign(window_width, window_height);
+        for (size_t i = 0; i < 28; i++)
+        {
+            DrawLine(i*10, 0, i*10, 280, BLACK);
+            DrawLine(0, i*10, 280, i*10, BLACK);
+        }
+
+        if (md) {
+            //printf("Pressed: x:%d y:%d", rx, ry);
+            //DrawRectangle(rx,ry,10,10,BLACK);
+            MAT_AT(inp, rx, ry) = 1.0;
+        }
+
+        for (size_t i = 0; i < inp->cols; i++)
+        {
+            for (size_t j = 0; j < inp->rows; j++)
+            {
+                if (MAT_AT(inp, i, j) > 0) {
+                    DrawRectangle(i*10,j*10,10,10,BLACK);
+                }
+            }
+            
+        }
+        
+        EndDrawing();
+    }
+    //return inp;
 }

@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <raylib.h>
+//#include "visuals/Ui.h"
 #include "NN.h"
 // for loading 3d tensor for the images
 typedef struct {
@@ -19,15 +20,15 @@ typedef struct {
  
 ImgData *load_mnist();
 // for viewing 
-void colourNormaliseArray(Mat m, ImgData *data, int img_num); 
+void colourNormaliseArray(Mat m, ImgData *data); 
 
 void MatPrintNum(Mat m, int label);
 
 void show_image(ImgData *data, int img);
 
-Mat labels_to_onehot(ImgData *data);
+void labels_to_onehot(Mat yout, ImgData *data);
 
 // make a 28x28 for testing
-float *draw_image();
+void draw_image();
 
 #endif

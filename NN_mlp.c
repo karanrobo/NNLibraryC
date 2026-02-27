@@ -72,32 +72,45 @@ int main(void) {
     // MAT_PRINT(test);
     
     ImgData *img = load_mnist();
-    int img_num = 5;
-    int label = img->labels[img_num];
-    Mat x = MatInit(img->rows, img->cols);
+    // int img_num = 5;
+    //int label = img->labels[img_num];
+    Mat x = MatInit(img->rows * img->cols, img->num_images);
     
-    colourNormaliseArray(x, img, img_num); 
-    MatPrintNum(x, label);
+    colourNormaliseArray(x, img); 
+    //MatPrintNum(x, label);
     
-    Mat xin = MatInit(img->rows*img->cols, 1);
-    MatFlat(xin, x);
-    MatPrintNum(xin, label);
-    show_image(img, img_num);
+    
+    //MatPrintNum(xin, label);
+    //show_image(img, img_num);
 
-    Mat yout = labels_to_onehot(img);
+    // each column is a new input
+    Mat yout = MatInit(10, img->num_images);
+    labels_to_onehot(yout, img);
 
     // y->labels, x->input
     // uint8_t *y = img->labels;
     
     float eta = 0.01;
-    int epoch = 10000;
+    int epoch = 1;
     // for mnist-> 28x28-> 
     int architecture[] = {784,128,64,10};
     Activation act[] =   {1,1,1,SOFTMAX};
     int alen = sizeof(architecture)/sizeof(architecture[0]);
     NN *nn = make_model(architecture, alen, act, MCLASS_CROSS_ENTROPY);
-    train_mlp_sgd(xin,*nn, yout, eta, epoch, 0);
+    // MAT_PRINT(xin);
+    // MAT_PRINT(yout);
+    train_mlp_sgd(x,*nn, yout, eta, epoch, 0);
+    Mat inp = MatInit(28,28);
+    draw_image(inp);
 
+    Mat inp_flat = MatInit(28 * 28, 1);
+    MatFlat(inp_flat, inp);
+    Mat test = forward(inp_flat, *nn);
+    MAT_PRINT(test);
 
+    
+
+    MatFree(inp_flat);
+    MatFree(inp);
     return 0;
 }
