@@ -20,8 +20,8 @@ uint32_t convert_endian(uint32_t val) {
            ((val & 0x000000FF) << 24);
 }
 
-void colourNormaliseArray(Mat m, ImgData *data) {
-    for (int k = 0; k < data->num_images; k++)
+void colourNormaliseArray(Mat m, ImgData *data, int sample_size) {
+    for (int k = 0; k < sample_size; k++)
     {
         for (int i = 0; i < data->rows; i++) {
             for (int j = 0; j < data->cols; j++)
@@ -35,15 +35,15 @@ void colourNormaliseArray(Mat m, ImgData *data) {
 }
 
 
-void labels_to_onehot(Mat yout, ImgData *data) {
+void labels_to_onehot(Mat yout, ImgData *data, int sample_size) {
     // 10 classes;
     // 
     // Mat yout = MatInit(10, data->num_images);
     for (size_t i = 0; i < 10; i++)
     {
-        for (size_t j = 0; j < data->num_images; j++)
+        for (size_t j = 0; j < sample_size; j++)
         {
-            if (data->images[j] == i) {
+            if (data->labels[j] == i) {
                 MAT_AT(yout, i, j) = 1.0;
             }
         }
@@ -184,6 +184,9 @@ void show_image(ImgData *data, int img) {
 //     return -1;
 // }
 
+
+
+
 void draw_image(Mat inp) {
     int window_height = 400;
     int window_width = 300;
@@ -242,8 +245,8 @@ void draw_image(Mat inp) {
             }
             
         }
+
         
         EndDrawing();
     }
-    //return inp;
 }

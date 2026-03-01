@@ -540,7 +540,7 @@ void train_mlp_sgd(Mat input, NN nn, Mat y, float eta, int epoch, bool print_err
             forward(xj, nn);
             // backwards to propagate the changes backwards
             backprop(nn, yj, eta);
-            printf("on col: %d\n", j);
+            //printf("on col: %d\n", j);
             
         }      
         if (print_error) printf("Cost = %f\n", cost(nn, yj));
