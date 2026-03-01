@@ -523,18 +523,33 @@ void backprop(NN nn, Mat y, float eta) {
     }
     return;
 }
+
+
 // should have sig train_mlp_sgd(in, nn, out, eta, epoch, activation, loss)
 void train_mlp_sgd(Mat input, NN nn, Mat y, float eta, int epoch, bool print_error) {
     // each col new input
     // each col maps to each input
+
+    int cols = (int)input->cols;
+    int *rand_arr = malloc(sizeof(int) * cols);
+    for (int i = 0; i < cols; i++) rand_arr[i] = i;
+
     printf("xr = %lld xc = %lld yr = %lld yc = %lld\n", input->rows,input->cols, y->rows, y->cols);
     Mat xj = MatInit(input->rows, 1);
     Mat yj = MatInit(y->rows, 1);
-    for (int i = 0; i < epoch; i++) {      
-        for (int j = 0; j < input->cols; j++)
+    for (int i = 0; i < epoch; i++) { 
+        // shuffling per epoch to remove order bias 
+        for (int j = cols - 1; j > 0; j--) {
+            int k = (int)((double)rand() / ((double)RAND_MAX + 1.0) * (j + 1)); // 0..j
+            int tmp = rand_arr[j];
+            rand_arr[j] = rand_arr[k];
+            rand_arr[k] = tmp;
+        }    
+        for (int j = 0; j < cols; j++)
         {
-            GetCol(xj, input, j);
-            GetCol(yj, y, j);
+            int n = rand_arr[j];
+            GetCol(xj, input, n);
+            GetCol(yj, y, n);
             // forward to initialise the current weights and params
             // takes column vector
             forward(xj, nn);
@@ -547,6 +562,7 @@ void train_mlp_sgd(Mat input, NN nn, Mat y, float eta, int epoch, bool print_err
     }
     MatFree(xj);
     MatFree(yj);
+    free(rand_arr);
 }
 
 void print_model(NN model) {

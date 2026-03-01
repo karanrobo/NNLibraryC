@@ -78,7 +78,7 @@ int main(void) {
     // MAT_PRINT(test);
     
     ImgData *img = load_mnist();
-    int sample_size = 60000;
+    int sample_size = 30000;
     // int img_num = 5;
     //int label = img->labels[img_num];
     // Mat x = MatInit(img->rows * img->cols, img->num_images);
@@ -215,16 +215,16 @@ int main(void) {
         if (change) {
             MatFlat(inp_flat, inp);
             Mat test = forward(inp_flat, *nn);
-            //predPrint(test);
-            float max = -1.0f;
-            int val = -1;
-            for (int i = 0; i < test->rows; i++) {
-                if (MAT_AT(test, i, 0) > max) {
-                    max = MAT_AT(test, i,0);
-                    val = i;
-                }
-            }
-            printf("Pred: %d, %f\n", val, MAT_AT(test, val, 0));
+            predPrint(test);
+            // float max = -1.0f;
+            // int val = -1;
+            // for (int i = 0; i < test->rows; i++) {
+            //     if (MAT_AT(test, i, 0) > max) {
+            //         max = MAT_AT(test, i,0);
+            //         val = i;
+            //     }
+            // }
+            // printf("Pred: %d, %f\n", val, MAT_AT(test, val, 0));
         }
         
        
